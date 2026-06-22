@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="favicon.png">   
+    <link rel="icon" type="image/png" href="/img/favicon.png">
     <title>AnimeTV – Your Classic Anime Tube</title>
     <style>
         :root {
@@ -543,6 +543,7 @@
         </div>
     </div>
 
+
     <script>
         // ══════════════════════════════════════
         //  YOUR ANIME DATA (unchanged)
@@ -630,11 +631,12 @@
         let currentWatchItem = null;
         let tvNeonTimer = null;
         let tvNeonActive = false;
-        let tvNeonBlocks = [];           // parsed blocks: [{ videoUrls: [], startTimeMs, blockDurationS? }]
+        let tvNeonBlocks = [];
         let currentBlockIndex = -1;
-        let currentVideoIndexInBlock = 0;  // which video in current block is playing
+        let currentVideoIndexInBlock = 0;
         let currentVideoDuration = 0;
         let activationTimer = null;
+        let internetOffset = 0;  // offset in ms: internet time = Date.now() + internetOffset
 
         const screenContent = document.getElementById('screenContent');
         const searchInput = document.getElementById('searchInput');
@@ -688,42 +690,31 @@
             }
         }
 
-        // ──────────  PARSE BLOCKS (new format)  ──────────
+        // ──────────  PARSE BLOCKS  ──────────
         function parseBlocks(text) {
             const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
             const blocks = [];
             let i = 0;
             while (i < lines.length) {
                 const videoUrls = [];
-                // collect video URLs (lines that are not timestamps and not numbers)
                 while (i < lines.length) {
                     const line = lines[i];
-                    // check if it looks like an ISO timestamp (contains T and maybe Z)
-                    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(line)) {
-                        break;
-                    }
-                    // check if it's a pure number (duration)
-                    if (/^\d+(\.\d+)?$/.test(line) && videoUrls.length > 0) {
-                        break;
-                    }
-                    // otherwise treat as video URL
+                    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(line)) break;
+                    if (/^\d+(\.\d+)?$/.test(line) && videoUrls.length > 0) break;
                     videoUrls.push(line);
                     i++;
                 }
                 if (videoUrls.length === 0) break;
-
-                if (i >= lines.length) break; // no start time → ignore incomplete block
+                if (i >= lines.length) break;
                 const startTimeISO = lines[i];
                 const startTimeMs = new Date(startTimeISO).getTime();
                 if (isNaN(startTimeMs)) { i++; continue; }
                 i++;
-
                 let blockDurationS = undefined;
                 if (i < lines.length && /^\d+(\.\d+)?$/.test(lines[i])) {
                     blockDurationS = parseFloat(lines[i]);
                     i++;
                 }
-
                 blocks.push({ videoUrls, startTimeMs, blockDurationS });
             }
             return blocks;
@@ -749,24 +740,24 @@
             }
         }
 
+        // This function now uses internet time (via the offset) to decide on/off state.
         function scheduleNeonActivation() {
             clearActivationTimer();
-            const now = Date.now();
-            const blocks = tvNeonBlocks;
+            const now = Date.now() + internetOffset; // estimated internet time
 
-            // Check if any block is currently active
-            for (const block of blocks) {
+            // Check for currently active block
+            for (const block of tvNeonBlocks) {
                 const blockEnd = block.blockDurationS
                     ? block.startTimeMs + block.blockDurationS * 1000
-                    : block.startTimeMs + 4 * 60 * 60 * 1000; // fallback 4 hours
-                if (now >= block.startTimeMs && now < blockEnd + 60000) { // active if within block or 1 min after end
+                    : block.startTimeMs + 4 * 60 * 60 * 1000; // fallback 4h
+                if (now >= block.startTimeMs && now < blockEnd + 60000) {
                     setNeonActive();
                     return;
                 }
             }
 
-            // Check for upcoming block (start in the future)
-            const futureBlocks = blocks.filter(b => b.startTimeMs > now).sort((a,b) => a.startTimeMs - b.startTimeMs);
+            // Check for upcoming future block
+            const futureBlocks = tvNeonBlocks.filter(b => b.startTimeMs > now).sort((a,b) => a.startTimeMs - b.startTimeMs);
             if (futureBlocks.length > 0) {
                 const nextBlock = futureBlocks[0];
                 const timeUntilStart = nextBlock.startTimeMs - now;
@@ -775,9 +766,11 @@
                     setNeonActive();
                 } else {
                     setNeonInactive();
+                    // Schedule activation in local clock time (adjust for offset)
+                    const localDelay = activationDelay - internetOffset;
                     activationTimer = setTimeout(() => {
                         setNeonActive();
-                    }, activationDelay);
+                    }, Math.max(0, localDelay));
                 }
             } else {
                 setNeonInactive();
@@ -794,11 +787,16 @@
                 const text = await fetchScheduleText(TVNEON_SCHEDULE_URL);
                 setCachedSchedule(text);
                 tvNeonBlocks = parseBlocks(text);
+                // Fetch internet time and compute offset
+                const internetTime = await fetchInternetTime();
+                internetOffset = internetTime - Date.now();
                 scheduleNeonActivation();
             } catch (e) {
                 const cached = getCachedSchedule();
                 if (cached) {
                     tvNeonBlocks = parseBlocks(cached);
+                    // Try to get internet time even if fetch failed? Use local as fallback, offset 0.
+                    internetOffset = 0;
                     scheduleNeonActivation();
                 } else {
                     setNeonInactive();
@@ -1023,7 +1021,7 @@
             }
         }
 
-        // ──────────  TV‑NEON SYNC (multi-video block)  ──────────
+        // ──────────  TV‑NEON SYNC  ──────────
         function stopTVNeonSync() {
             if (tvNeonTimer) {
                 clearInterval(tvNeonTimer);
@@ -1085,32 +1083,18 @@
             const block = blocks[activeIdx];
             const elapsed = (now - block.startTimeMs) / 1000;
 
-            // Determine which video in the block should be playing, based on elapsed time and known durations.
-            // If blockDurationS is provided, use it to clamp. Otherwise play videos sequentially without accurate seek for later videos.
-            let videoIdx = 0;
-            let seekTime = 0;
-            if (block.videoUrls.length === 1) {
-                // single video: seek to elapsed, clamped to duration
-                const video = await loadVideoInBlock(block.videoUrls[0]);
-                if (!video) return;
-                seekTime = Math.max(0, elapsed);
-                if (seekTime > video.duration) seekTime = video.duration;
-                video.currentTime = seekTime;
-                currentVideoIndexInBlock = 0;
-            } else {
-                // multiple videos: start from first video, sync to elapsed time only for the first video
-                // (subsequent videos will play when the previous ends, no sync)
-                const video = await loadVideoInBlock(block.videoUrls[0]);
-                if (!video) return;
-                seekTime = Math.max(0, elapsed);
-                if (seekTime > video.duration) seekTime = video.duration;
-                video.currentTime = seekTime;
-                currentVideoIndexInBlock = 0;
-                // after this video ends, automatically play next video
+            // Load the first video
+            const video = await loadVideoInBlock(block.videoUrls[0]);
+            if (!video) return;
+            let seekTime = Math.max(0, elapsed);
+            if (seekTime > video.duration) seekTime = video.duration;
+            video.currentTime = seekTime;
+            currentVideoIndexInBlock = 0;
+
+            if (block.videoUrls.length > 1) {
                 video.addEventListener('ended', playNextVideoInBlock);
             }
 
-            // Main sync loop (only needed for single video or first video of block)
             const sync = async () => {
                 const now = await fetchInternetTime();
                 const block = tvNeonBlocks[currentBlockIndex];
@@ -1122,7 +1106,6 @@
                 }
                 const elapsed = (now - block.startTimeMs) / 1000;
 
-                // For single video, keep it synced
                 if (block.videoUrls.length === 1 && currentVideoIndexInBlock === 0) {
                     const video = document.getElementById('tvneonVideo');
                     if (!video) return;
@@ -1130,7 +1113,6 @@
                         if (!video.paused) video.pause();
                         video.currentTime = 0;
                     } else if (elapsed > video.duration + 60) {
-                        // finished, check for next block
                         const nextIdx = currentBlockIndex + 1;
                         if (nextIdx < tvNeonBlocks.length) {
                             const nextBlock = tvNeonBlocks[nextIdx];
@@ -1152,7 +1134,7 @@
                         }
                     }
                 }
-                // For multi-video block, we only sync the first video; the loop is not needed after that.
+                // For multi-video blocks, sync is only for the first video; subsequent ones play sequentially.
             };
 
             await sync();
@@ -1174,15 +1156,12 @@
             } else {
                 // block finished
                 stopTVNeonSync();
-                // check for next block within 2 minutes
-                const now = Date.now();
+                const now = Date.now() + internetOffset;
                 const nextBlockIdx = currentBlockIndex + 1;
                 if (nextBlockIdx < tvNeonBlocks.length) {
                     const nextBlock = tvNeonBlocks[nextBlockIdx];
                     const gap = nextBlock.startTimeMs - now;
                     if (gap <= 120000) {
-                        // next block starting soon, keep neon active (already active)
-                        // and schedule a new sync to start at that block's time
                         currentBlockIndex = nextBlockIdx;
                         startTVNeonSync();
                         return;
@@ -1276,7 +1255,7 @@
         //  INITIALISATION
         // ══════════════════════════════════════
         updateTVNeonButton();
-        // Re-check schedule every 5 minutes to pick up changes
+        // Re-check schedule every 5 minutes
         setInterval(updateTVNeonButton, 300000);
         renderBrowse();
     </script>
