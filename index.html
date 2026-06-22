@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnimeTV – Your Classic Anime Tube</title>
+    <style>
+        :root {
+            --wood-dark: #2e1e14;
+            --wood-light: #4a3222;
+            --wood-border: #1a0e06;
+            --speaker-grille: #1a1a1a;
+            --button-bg: #3a2a1a;
+            --button-shadow: #1a0e06;
+            --accent: #e63946;
+            --neon: #00ffff;
+            --screen-bg: #0a0a12;
+            --card-bg: #1c1c2e;
+            --text: #f0f0f5;
+            --text-secondary: #b0b0cc;
+            --text-muted: #7a7a99;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: #000;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+        .tv-frame {
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(145deg, #4a3222, #2e1e14);
+            border: 8px solid #1a0e06;
+            border-radius: 30px;
+            box-shadow: inset 0 0 0 4px #8b6b4a;
+            display: flex;
+            padding: 8px;
+            gap: 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .tv-left-panel {
+            width: 220px;
+            background: #2c2018;
+            border-right: 4px solid #1a0e06;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px 12px;
+            gap: 14px;
+            flex-shrink: 0;
+            z-index: 2;
+            overflow-y: auto;
+            border-radius: 15px;
+        }
+        .tv-screen {
+            flex: 1;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.9);
+            border-radius: 15px;
+        }
+        .speaker-grille {
+            width: 70%;
+            height: 100px;
+            background: repeating-linear-gradient(to bottom,
+                    #1a1a1a 0px,
+                    #1a1a1a 4px,
+                    #2c2c2c 4px,
+                    #2c2c2c 8px);
+            border-radius: 12px;
+            border: 3px solid #111;
+            box-shadow: inset 0 0 10px #000;
+            margin-bottom: 4px;
+        }
+        .channel-display {
+            background: #000;
+            color: var(--accent);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 800;
+            font-size: 0.9rem;
+            border: 1px solid #444;
+            letter-spacing: 0.5px;
+            text-align: center;
+            width: fit-content;
+            margin: 0 auto;
+            white-space: nowrap;
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .search-box {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 8px 8px;
+            background: #000;
+            border: 1px solid #444;
+            color: var(--text);
+            font-size: 0.85rem;
+            border-radius: 4px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .search-box input:focus {
+            border-color: var(--accent);
+        }
+        .search-box input::placeholder {
+            color: #555;
+        }
+        .search-clear {
+            background: none;
+            border: 1px solid #444;
+            color: #888;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            display: none;
+            align-self: flex-end;
+            margin-top: -2px;
+        }
+        .search-clear.visible {
+            display: inline-block;
+        }
+        .episode-nav {
+            display: none;
+            width: 100%;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: center;
+        }
+        .episode-nav.visible {
+            display: flex;
+        }
+        .ep-nav-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--button-bg);
+            border: 2px solid #1a0e06;
+            color: #ddd;
+            font-weight: 700;
+            font-size: 0.7rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.1s ease;
+            box-shadow: 0 2px 0 #1a0e06;
+        }
+        .ep-nav-btn:active {
+            transform: translateY(2px);
+            box-shadow: none;
+        }
+        .ep-nav-btn.watched {
+            border-color: var(--accent);
+            box-shadow: 0 0 8px rgba(230,57,70,0.5);
+            color: #fff;
+            background: var(--accent);
+        }
+        .tv-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            margin-top: auto;
+        }
+        .tv-btn {
+            padding: 10px 8px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            background: var(--button-bg);
+            color: #ddd;
+            border: 2px solid #1a0e06;
+            box-shadow: 0 4px 0 #1a0e06;
+            transition: all 0.1s ease;
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+        .tv-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #1a0e06;
+        }
+        .tv-btn.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: #8b0000;
+            box-shadow: 0 4px 0 #5a0000, 0 0 15px rgba(230, 57, 70, 0.5);
+        }
+        .tv-btn:hover {
+            filter: brightness(1.2);
+        }
+        .tv-btn.tvneon {
+            border-color: var(--neon);
+            box-shadow: 0 0 12px rgba(0,255,255,0.3);
+            background: #1a2a2a;
+            color: var(--neon);
+            font-weight: 800;
+            order: -1;
+        }
+        .tv-btn.tvneon.active {
+            background: var(--neon);
+            color: #000;
+            border-color: #00cccc;
+            box-shadow: 0 0 20px rgba(0,255,255,0.7);
+        }
+        .tv-btn.tvneon.inactive {
+            opacity: 0.5;
+            pointer-events: none;
+            filter: grayscale(0.5);
+        }
+        .screen-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            background: radial-gradient(ellipse at center, #0a0a12 0%, #000 100%);
+            scrollbar-width: thin;
+            scrollbar-color: transparent transparent;
+            transition: scrollbar-color 0.3s ease;
+        }
+        .screen-content:hover {
+            scrollbar-color: var(--accent) #000;
+        }
+        .screen-content::-webkit-scrollbar {
+            width: 6px;
+            background: transparent;
+        }
+        .screen-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .screen-content::-webkit-scrollbar-thumb {
+            background: transparent;
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+        .screen-content:hover::-webkit-scrollbar-thumb {
+            background: #333;
+        }
+        .screen-content::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
+        .browse-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .browse-header h2 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .item-count {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 12px;
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid #2a2a3a;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: 0.15s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+        .card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 18px rgba(230, 57, 70, 0.3);
+            transform: translateY(-2px);
+        }
+        .card-thumb {
+            aspect-ratio: 16/10;
+            background: #1a1a2e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .card-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .card-badge {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 2px;
+            z-index: 2;
+        }
+        .play-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            color: #fff;
+            opacity: 0;
+            transition: opacity 0.2s;
+            text-shadow: 0 0 10px black;
+            z-index: 2;
+        }
+        .card:hover .play-icon {
+            opacity: 1;
+        }
+        .card-body {
+            padding: 8px 10px;
+        }
+        .card-title {
+            font-weight: 700;
+            font-size: 0.85rem;
+            line-height: 1.25;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            color: #fff;
+        }
+        .card-meta {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .no-results {
+            text-align: center;
+            color: #666;
+            padding: 3rem;
+        }
+        .watch-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100%;
+        }
+        .back-btn, .ep-nav-btn-watch {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 14px;
+            background: #1a1a24;
+            border: 1px solid #333;
+            color: #fff;
+            cursor: pointer;
+            font-weight: 600;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            width: fit-content;
+            flex-shrink: 0;
+            text-decoration: none;
+        }
+        .back-btn:hover, .ep-nav-btn-watch:hover {
+            background: #2a2a3a;
+        }
+        .ep-nav-btn-watch:disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        .prev-next-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .video-player {
+            flex: 0 0 82vh;
+            position: relative;
+            overflow: hidden;
+            background: #000;
+            border-radius: 8px;
+        }
+        .video-player video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .mega-embed-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .mega-embed-wrapper iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+        .video-placeholder {
+            color: #777;
+            text-align: center;
+            padding: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .watch-info {
+            margin-top: 12px;
+            color: #ccc;
+            flex-shrink: 0;
+        }
+        .watch-info h2 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .meta-row {
+            display: flex;
+            gap: 8px;
+            margin: 4px 0 8px;
+            flex-wrap: wrap;
+            font-size: 0.75rem;
+            color: #888;
+        }
+        .meta-row span {
+            background: #1a1a24;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .synopsis {
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: #aaa;
+        }
+        .fullscreen-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid #fff;
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 10;
+            font-size: 0.8rem;
+        }
+        @media (max-width: 700px) {
+            .tv-frame {
+                flex-direction: column;
+                padding: 4px;
+                border-radius: 20px;
+            }
+            .tv-left-panel {
+                width: 100%;
+                flex-direction: row;
+                align-items: center;
+                padding: 8px;
+                gap: 8px;
+                border-right: none;
+                border-bottom: 4px solid #1a0e06;
+                flex-wrap: wrap;
+                overflow-y: visible;
+            }
+            .speaker-grille {
+                width: 40px;
+                height: 30px;
+                margin-bottom: 0;
+            }
+            .channel-display {
+                font-size: 0.7rem;
+                padding: 2px 6px;
+            }
+            .search-box {
+                flex: 1;
+                min-width: 120px;
+            }
+            .tv-buttons {
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 4px;
+                margin-top: 0;
+                width: auto;
+            }
+            .tv-btn {
+                padding: 6px 10px;
+                font-size: 0.7rem;
+            }
+            .tv-screen {
+                flex: 1;
+            }
+            .video-player {
+                flex: 0 0 70vh;
+            }
+            .episode-nav {
+                justify-content: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="tv-frame">
+        <div class="tv-left-panel">
+            <div class="speaker-grille"></div>
+            <div class="channel-display" id="channelDisplay">CH 02</div>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search anime..." oninput="handleSearch()">
+                <button class="search-clear" id="clearSearchBtn" onclick="clearSearch()">✕</button>
+            </div>
+            <div class="episode-nav" id="episodeNav"></div>
+            <div class="tv-buttons">
+                <button class="tv-btn tvneon" data-section="tvneon">📡 TV‑Neon</button>
+                <button class="tv-btn" data-section="all">📺 All</button>
+                <button class="tv-btn active" data-section="series">📺 Series</button>
+                <button class="tv-btn" data-section="movies">🎬 Movies</button>
+                <button class="tv-btn" data-section="songs">🎵 Songs</button>
+            </div>
+        </div>
+        <div class="tv-screen">
+            <div class="screen-content" id="screenContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // ══════════════════════════════════════
+        //  YOUR ANIME DATA (unchanged)
+        // ══════════════════════════════════════
+        const animeData = {
+            series: [
+                {
+                    id: 'mewmew',
+                    title: 'Mew Mew Power (Družina Mjau Mjau)',
+                    thumbUrl: 'C:/Users/Administrator/Desktop/df/Picture_000.png',
+                    thumbEmoji: '🐱',
+                    genre: 'Magical Girl / Romance',
+                    year: '2002',
+                    synopsis: 'Ichigo Momomiya gets infused with the DNA of an Iriomote cat and becomes Mew Ichigo. Together with four other girls, she must protect Earth from alien invaders.',
+                    episodes: [
+                        {
+                            id: 'ep1',
+                            title: 'Episode 1',
+                            thumbUrl: 'C:/Users/Administrator/Desktop/df/mewmewep.png',
+                            thumbEmoji: '🐱',
+                            videoUrl: 'https://mega.nz/embed/bjY3QLQR#BBQfeuxQoVJuize6gahKngJPRA8BCdA3e_OGM2kohqI'
+                        },
+                        {
+                            id: 'ep2',
+                            title: 'Episode 2',
+                            thumbUrl: 'C:/Users/Administrator/Desktop/df/mewmewep.png',
+                            thumbEmoji: '🐱',
+                            videoUrl: 'https://mega.nz/embed/bjY3QLQR#BBQfeuxQoVJuize6gahKngJPRA8BCdA3e_OGM2kohqI'
+                        },
+                    ]
+                }
+            ],
+            movies: [
+                {
+                    id: 'catreturns',
+                    title: 'The Cat Returns (Kraljevstvo Mačaka)',
+                    thumbUrl: 'C:/Users/Administrator/Desktop/df/thecatreturns1.png',
+                    thumbEmoji: '🐈',
+                    genre: 'Fantasy / Adventure',
+                    year: '2002',
+                    synopsis: 'Haru saves a mysterious cat and is whisked away to the Cat Kingdom. She must find her true self before she\'s turned into a cat forever.',
+                    videoUrl: 'https://mega.nz/embed/i3QliQoK#BoySbNaX65hOzrO1HimYW-5fpXmGv1BkCVsSovQgBKQ',
+                    badge: 'MOVIE'
+                }
+            ],
+            songs: [
+                {
+                    id: 'mewmew-song',
+                    title: 'Družina Mjau Mjau – Main Theme',
+                    thumbUrl: 'C:/Users/Administrator/Desktop/df/mewmew.png',
+                    thumbEmoji: '🎤',
+                    anime: 'Mew Mew Power',
+                    type: 'Opening',
+                    year: '2002',
+                    synopsis: 'The iconic opening theme of Mew Mew Power (Družina Mjau Mjau).',
+                    videoUrl: 'https://mega.nz/embed/aj5imZJK#0TEm2qdU7zutVxGnVJyLdAjSzWy9SH2QB772mmsXVHI',
+                    badge: '🎵 OP'
+                },
+                {
+                    id: 'deadmanwonderland-song',
+                    title: 'Deadman Wonderland – Main Theme',
+                    thumbUrl: 'C:/Users/Administrator/Desktop/df/deadmanwonderlandop.png',
+                    thumbEmoji: '🎤',
+                    anime: 'Deadman Wonderland',
+                    type: 'Opening',
+                    year: '2011',
+                    synopsis: 'The iconic opening theme of Deadman Wonderland.',
+                    videoUrl: 'https://mega.nz/embed/aj5imZJK#0TEm2qdU7zutVxGnVJyLdAjSzWy9SH2QB772mmsXVHI',
+                    badge: '🎵 OP'
+                }
+            ]
+        };
+
+        // ══════════════════════════════════════
+        //  TV‑NEON CONFIGURATION
+        // ══════════════════════════════════════
+        const TVNEON_SCHEDULE_URL = 'https://raw.githubusercontent.com/wonderingpaladin-commits/TV-NEON/refs/heads/main/streamShedule.txt';
+        const CORS_PROXY = 'https://corsproxy.io/?';
+
+        // ────────────────────────  STATE  ────────────────────────
+        let currentSection = 'series';
+        let searchQuery = '';
+        let currentView = 'browse';
+        let currentSeries = null;
+        let currentWatchItem = null;
+        let tvNeonTimer = null;
+
+        const screenContent = document.getElementById('screenContent');
+        const searchInput = document.getElementById('searchInput');
+        const clearBtn = document.getElementById('clearSearchBtn');
+        const channelDisplay = document.getElementById('channelDisplay');
+        const episodeNav = document.getElementById('episodeNav');
+        const tvneonBtn = document.querySelector('.tv-btn.tvneon');
+
+        // ──────────  LOCAL STORAGE HELPERS  ──────────
+        function getLastWatchedEpisode(seriesId) {
+            return localStorage.getItem('lastWatched_' + seriesId);
+        }
+        function setLastWatchedEpisode(seriesId, episodeId) {
+            localStorage.setItem('lastWatched_' + seriesId, episodeId);
+        }
+        function getCachedSchedule() {
+            return localStorage.getItem('tvneon_schedule_cache');
+        }
+        function setCachedSchedule(text) {
+            localStorage.setItem('tvneon_schedule_cache', text);
+        }
+
+        // ──────────  INTERNET TIME API (FIXED – forces UTC)  ──────────
+        async function fetchInternetTime() {
+            try {
+                const resp = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=UTC');
+                if (!resp.ok) throw new Error('timeapi failed');
+                const data = await resp.json();
+                // The API returns "dateTime" without a timezone suffix – force it to UTC
+                let dt = data.dateTime;
+                if (!dt.endsWith('Z') && !dt.includes('+')) {
+                    dt += 'Z'; // mark as UTC
+                }
+                console.log('[TV-NEON] Internet time fetched:', dt);
+                return new Date(dt).getTime();
+            } catch (e) {
+                console.warn('[TV-NEON] Time API failed, using local clock.');
+                return Date.now();
+            }
+        }
+
+        // ──────────  SCHEDULE FETCHING (with proxy fallback)  ──────────
+        async function fetchScheduleText(url) {
+            try {
+                const resp = await fetch(url);
+                if (resp.ok) return await resp.text();
+                throw new Error('Direct fetch failed');
+            } catch (e) {
+                const proxyUrl = CORS_PROXY + encodeURIComponent(url);
+                const resp = await fetch(proxyUrl);
+                if (!resp.ok) throw new Error('Proxy fetch failed');
+                return await resp.text();
+            }
+        }
+
+        // ──────────  TV‑NEON BUTTON STATUS  ──────────
+        async function updateTVNeonButton() {
+            if (!TVNEON_SCHEDULE_URL) {
+                tvneonBtn.classList.add('inactive');
+                tvneonBtn.classList.remove('active');
+                return;
+            }
+            try {
+                const text = await fetchScheduleText(TVNEON_SCHEDULE_URL);
+                setCachedSchedule(text);
+                applyScheduleState(text);
+            } catch (e) {
+                const cached = getCachedSchedule();
+                if (cached) {
+                    applyScheduleState(cached);
+                } else {
+                    tvneonBtn.classList.add('inactive');
+                    tvneonBtn.classList.remove('active');
+                }
+            }
+        }
+
+        function applyScheduleState(scheduleText) {
+            const lines = scheduleText.trim().split('\n');
+            if (lines.length < 2) {
+                tvneonBtn.classList.add('inactive');
+                tvneonBtn.classList.remove('active');
+                return;
+            }
+            const startTime = new Date(lines[1].trim()).getTime();
+            if (isNaN(startTime)) {
+                tvneonBtn.classList.add('inactive');
+                tvneonBtn.classList.remove('active');
+                return;
+            }
+            const now = Date.now();
+            const fourHours = 4 * 60 * 60 * 1000;
+            if (startTime > now || (now - startTime) < fourHours) {
+                tvneonBtn.classList.remove('inactive');
+                tvneonBtn.classList.add('active');
+            } else {
+                tvneonBtn.classList.add('inactive');
+                tvneonBtn.classList.remove('active');
+            }
+        }
+
+        // ──────────  HELPERS  ──────────
+        function getShowList() {
+            let items = [];
+            if (currentSection === 'all' || currentSection === 'series') {
+                items.push(...animeData.series.map(s => ({ ...s, category: 'series' })));
+            }
+            if (currentSection === 'all' || currentSection === 'movies') {
+                items.push(...animeData.movies.map(m => ({ ...m, category: 'movie' })));
+            }
+            if (currentSection === 'all' || currentSection === 'songs') {
+                items.push(...animeData.songs.map(sg => ({ ...sg, category: 'song' })));
+            }
+            return items;
+        }
+
+        function filterShows(items) {
+            if (!searchQuery) return items;
+            const q = searchQuery.toLowerCase();
+            return items.filter(item =>
+                item.title.toLowerCase().includes(q) ||
+                (item.genre || '').toLowerCase().includes(q) ||
+                (item.anime || '').toLowerCase().includes(q) ||
+                (item.synopsis || '').toLowerCase().includes(q)
+            );
+        }
+
+        function setChannel(text) {
+            channelDisplay.textContent = text || (currentSection === 'tvneon' ? 'TV‑NEON' : 'CH 02');
+        }
+
+        function createCard(item, onClick) {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.onclick = onClick;
+            const badge = item.badge ? `<span class="card-badge">${item.badge}</span>` : '';
+            const thumbContent = item.thumbUrl
+                ? `<img src="${item.thumbUrl}" alt="${item.title}">`
+                : `<span style="font-size:2rem;">${item.thumbEmoji || '🎬'}</span>`;
+            card.innerHTML = `
+                <div class="card-thumb">
+                    ${badge}
+                    ${thumbContent}
+                    <div class="play-icon">▶</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-title">${item.title}</div>
+                    <div class="card-meta">${item.genre || item.anime || ''} · ${item.episodes ? item.episodes.length+' Ep' : (item.duration || item.type || '')} · ${item.year}</div>
+                </div>`;
+            return card;
+        }
+
+        function showEpisodeNav(series) {
+            episodeNav.innerHTML = '';
+            const lastWatchedId = getLastWatchedEpisode(series.id);
+            series.episodes.forEach((ep, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'ep-nav-btn';
+                if (ep.id === lastWatchedId) btn.classList.add('watched');
+                btn.textContent = (idx + 1).toString();
+                btn.title = ep.title;
+                btn.onclick = () => { openWatch(ep, series); };
+                episodeNav.appendChild(btn);
+            });
+            episodeNav.classList.add('visible');
+        }
+
+        function hideEpisodeNav() {
+            episodeNav.innerHTML = '';
+            episodeNav.classList.remove('visible');
+        }
+
+        // ──────────  RENDERING  ──────────
+        function renderBrowse() {
+            currentView = 'browse';
+            currentSeries = null;
+            currentWatchItem = null;
+            hideEpisodeNav();
+            setChannel(null);
+            const shows = filterShows(getShowList());
+            const html = `
+                <div class="browse-header">
+                    <h2>${currentSection === 'all' ? 'All Content' : currentSection.charAt(0).toUpperCase()+currentSection.slice(1)}</h2>
+                    <span class="item-count">(${shows.length})</span>
+                </div>
+                <div class="card-grid" id="cardGrid"></div>
+                ${shows.length === 0 && searchQuery ? '<div class="no-results"><h3>No matches</h3><p>Try another search</p></div>' : ''}
+            `;
+            screenContent.innerHTML = html;
+            const grid = document.getElementById('cardGrid');
+            if (grid) {
+                shows.forEach(show => {
+                    const onClick = () => {
+                        if (show.category === 'series') {
+                            openEpisodeList(show);
+                        } else {
+                            openWatch(show);
+                        }
+                    };
+                    grid.appendChild(createCard(show, onClick));
+                });
+            }
+            const channelMap = { all:'CH 01', series:'CH 02', movies:'CH 03', songs:'CH 04' };
+            setChannel(channelMap[currentSection] || 'CH 02');
+        }
+
+        function openEpisodeList(series) {
+            currentView = 'episodeList';
+            currentSeries = series;
+            showEpisodeNav(series);
+            setChannel(series.title);
+            const backHtml = `
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+                    <button class="back-btn" onclick="goBackToBrowse()">← Back to shows</button>
+                    <h2 style="color:#fff;">${series.title}</h2>
+                </div>
+                <div class="card-grid" id="episodeGrid"></div>
+            `;
+            screenContent.innerHTML = backHtml;
+            const grid = document.getElementById('episodeGrid');
+            series.episodes.forEach(ep => {
+                const onClick = () => openWatch(ep, series);
+                const epCardData = {
+                    ...ep,
+                    genre: series.genre,
+                    year: series.year,
+                    badge: `Ep ${series.episodes.indexOf(ep)+1}`,
+                };
+                grid.appendChild(createCard(epCardData, onClick));
+            });
+            screenContent.scrollTop = 0;
+        }
+
+        function goBackToBrowse() {
+            currentView = 'browse';
+            currentSeries = null;
+            currentWatchItem = null;
+            hideEpisodeNav();
+            renderBrowse();
+            screenContent.scrollTop = 0;
+        }
+
+        function openWatch(item, parentSeries) {
+            currentView = 'watch';
+            currentWatchItem = item;
+            if (parentSeries) {
+                currentSeries = parentSeries;
+                showEpisodeNav(parentSeries);
+            } else {
+                currentSeries = null;
+                hideEpisodeNav();
+            }
+
+            const videoUrl = item.videoUrl || (parentSeries ? parentSeries.videoUrl : '');
+            let playerHtml = '';
+            if (videoUrl && videoUrl.includes('mega.nz/embed')) {
+                playerHtml = `<div class="mega-embed-wrapper"><iframe src="${videoUrl}" allowfullscreen frameborder="0"></iframe></div>`;
+            } else if (videoUrl) {
+                playerHtml = `<video controls autoplay playsinline><source src="${videoUrl}" type="video/mp4">Your browser does not support video.</video>`;
+            } else {
+                playerHtml = `<div class="video-placeholder"><p>No video file configured.</p></div>`;
+            }
+
+            if (parentSeries) {
+                setLastWatchedEpisode(parentSeries.id, item.id);
+                showEpisodeNav(parentSeries);
+            }
+
+            let channelTitle = parentSeries ? `${item.title} – ${parentSeries.title}` : item.title;
+            setChannel(channelTitle);
+
+            const displayTitle = channelTitle;
+            const metaInfo = parentSeries ? parentSeries.genre : (item.genre || item.anime || '');
+            const metaExtra = parentSeries ? `${parentSeries.year}` : (item.year || '');
+
+            let prevNextHtml = '';
+            if (parentSeries) {
+                const currentIdx = parentSeries.episodes.findIndex(ep => ep.id === item.id);
+                const prevEp = currentIdx > 0 ? parentSeries.episodes[currentIdx - 1] : null;
+                const nextEp = currentIdx < parentSeries.episodes.length - 1 ? parentSeries.episodes[currentIdx + 1] : null;
+                prevNextHtml = `
+                    <div class="prev-next-row">
+                        <button class="ep-nav-btn-watch" ${prevEp ? '' : 'disabled'} onclick="event.stopPropagation(); openWatch(animeData.series.find(s => s.id === '${parentSeries.id}').episodes[${currentIdx - 1}], currentSeries)">◀ Prev</button>
+                        <span style="color:#aaa; font-size:0.8rem;">Ep ${currentIdx+1} / ${parentSeries.episodes.length}</span>
+                        <button class="ep-nav-btn-watch" ${nextEp ? '' : 'disabled'} onclick="event.stopPropagation(); openWatch(animeData.series.find(s => s.id === '${parentSeries.id}').episodes[${currentIdx + 1}], currentSeries)">Next ▶</button>
+                    </div>`;
+            }
+
+            const backHtml = `
+                <div class="watch-container">
+                    <button class="back-btn" onclick="goBackFromWatch()">← Back</button>
+                    ${prevNextHtml}
+                    <div class="video-player" id="videoPlayer">${playerHtml}</div>
+                    <div class="watch-info">
+                        <h2>${displayTitle}</h2>
+                        <div class="meta-row">
+                            <span>${metaInfo}</span>
+                            <span>${item.episodes ? item.episodes.length+' Ep' : (item.duration || item.type || '')}</span>
+                            <span>${metaExtra}</span>
+                            ${item.badge ? `<span>${item.badge}</span>` : ''}
+                        </div>
+                        <p class="synopsis">${item.synopsis || (parentSeries ? parentSeries.synopsis : '')}</p>
+                        <p style="color:#666; margin-top:20px;">Scroll down for more info...</p>
+                        <div style="height:200px;"></div>
+                    </div>
+                </div>`;
+            screenContent.innerHTML = backHtml;
+            screenContent.scrollTop = 0;
+        }
+
+        function goBackFromWatch() {
+            if (currentSeries && currentView === 'watch') {
+                openEpisodeList(currentSeries);
+            } else {
+                goBackToBrowse();
+            }
+        }
+
+        // ──────────  TV‑NEON PLAYBACK (FULL SYNC WITH CONSOLE LOGS)  ──────────
+        function stopTVNeonSync() {
+            if (tvNeonTimer) {
+                console.log('[TV-NEON] Stopping sync timer.');
+                clearInterval(tvNeonTimer);
+                tvNeonTimer = null;
+            }
+        }
+
+        async function setupTVNeonPlayer(videoUrl, startTimeISO) {
+            const playerDiv = document.getElementById('videoPlayer');
+            if (!playerDiv) return;
+            const startTime = new Date(startTimeISO).getTime();
+            console.log('[TV-NEON] setupPlayer – videoUrl:', videoUrl, 'startTimeISO:', startTimeISO, 'startTime (ms):', startTime);
+            if (isNaN(startTime)) {
+                console.error('[TV-NEON] Invalid start time.');
+                playerDiv.innerHTML = `<div class="video-placeholder" style="color:var(--neon);">Invalid start time in schedule file.</div>`;
+                return;
+            }
+
+            // Use autoplay to leverage the user-gesture from the TV‑Neon button click
+            playerDiv.innerHTML = `<video id="tvneonVideo" style="width:100%; height:100%; object-fit:contain;" preload="auto" autoplay playsinline></video>
+                                  <button class="fullscreen-btn" onclick="document.getElementById('tvneonVideo').requestFullscreen()">⛶ Full</button>`;
+            const video = document.getElementById('tvneonVideo');
+            video.src = videoUrl;
+            video.load();
+            console.log('[TV-NEON] Video element created, loading...');
+
+            // Wait for metadata to be able to seek
+            await new Promise(resolve => {
+                video.addEventListener('loadedmetadata', () => {
+                    console.log('[TV-NEON] Metadata loaded, duration:', video.duration);
+                    resolve();
+                }, { once: true });
+                if (video.readyState >= 1) {
+                    console.log('[TV-NEON] Metadata already available.');
+                    resolve();
+                }
+            });
+
+            const sync = async () => {
+                const now = await fetchInternetTime();
+                const elapsed = (now - startTime) / 1000; // seconds
+                console.log(`[TV-NEON] Sync – now: ${new Date(now).toISOString()}, elapsed: ${elapsed.toFixed(2)}s, video.currentTime: ${video.currentTime.toFixed(2)}s, paused: ${video.paused}`);
+
+                if (elapsed < 0) {
+                    // Before scheduled start – keep paused at 0
+                    console.log('[TV-NEON] Before start time – pausing.');
+                    if (!video.paused) {
+                        video.pause();
+                        console.log('[TV-NEON] Paused video.');
+                    }
+                    if (Math.abs(video.currentTime) > 0.5) {
+                        video.currentTime = 0;
+                        console.log('[TV-NEON] Reset currentTime to 0.');
+                    }
+                } else {
+                    // Time to play – ensure video is playing and at correct position
+                    console.log('[TV-NEON] Should be playing.');
+                    if (video.paused) {
+                        try {
+                            await video.play();
+                            console.log('[TV-NEON] Called play() – success.');
+                        } catch (e) {
+                            console.warn('[TV-NEON] play() failed:', e);
+                        }
+                    }
+                    if (Math.abs(video.currentTime - elapsed) > 2) {
+                        console.log(`[TV-NEON] Seeking to ${elapsed.toFixed(2)}s (difference > 2s).`);
+                        video.currentTime = elapsed;
+                    }
+                }
+            };
+
+            // Initial sync
+            console.log('[TV-NEON] Performing initial sync...');
+            await sync();
+            // Continue syncing every 5 seconds
+            tvNeonTimer = setInterval(sync, 5000);
+            console.log('[TV-NEON] Sync timer started (every 5s).');
+        }
+
+        function renderTVNeon() {
+            currentView = 'tvneon';
+            currentSeries = null;
+            currentWatchItem = null;
+            hideEpisodeNav();
+            stopTVNeonSync();
+            setChannel('TV‑NEON');
+
+            const cached = getCachedSchedule();
+            if (cached) {
+                try {
+                    const lines = cached.trim().split('\n');
+                    if (lines.length >= 2) {
+                        const videoUrl = lines[0].trim();
+                        const startTimeISO = lines[1].trim();
+                        console.log('[TV-NEON] Using cached schedule:', videoUrl, startTimeISO);
+                        screenContent.innerHTML = `<div class="watch-container"><div class="video-player" id="videoPlayer"><div class="video-placeholder" style="color:var(--neon);">Loading scheduled stream...</div></div></div>`;
+                        setupTVNeonPlayer(videoUrl, startTimeISO);
+                        if (TVNEON_SCHEDULE_URL) {
+                            fetchScheduleText(TVNEON_SCHEDULE_URL).then(text => setCachedSchedule(text)).catch(() => {});
+                        }
+                        return;
+                    }
+                } catch (e) {}
+            }
+
+            if (!TVNEON_SCHEDULE_URL) {
+                screenContent.innerHTML = `<div class="video-placeholder" style="color:var(--neon);">
+                    <p>📡 TV‑Neon schedule URL not set.</p>
+                    <p style="font-size:0.8rem;">Set <code>TVNEON_SCHEDULE_URL</code> in the script.</p>
+                </div>`;
+                return;
+            }
+
+            fetchScheduleText(TVNEON_SCHEDULE_URL)
+                .then(text => {
+                    console.log('[TV-NEON] Fetched schedule text:', text);
+                    setCachedSchedule(text);
+                    const lines = text.trim().split('\n');
+                    if (lines.length < 2) throw new Error('Invalid format');
+                    const videoUrl = lines[0].trim();
+                    const startTimeISO = lines[1].trim();
+                    screenContent.innerHTML = `<div class="watch-container"><div class="video-player" id="videoPlayer"><div class="video-placeholder" style="color:var(--neon);">Loading scheduled stream...</div></div></div>`;
+                    setupTVNeonPlayer(videoUrl, startTimeISO);
+                })
+                .catch(err => {
+                    console.error('[TV-NEON] Error:', err);
+                    screenContent.innerHTML = `<div class="video-placeholder" style="color:var(--neon);">
+                        <p>Error loading schedule</p>
+                        <p style="font-size:0.8rem;">${err.message}</p>
+                    </div>`;
+                });
+        }
+
+        // ──────────  NAVIGATION & SEARCH  ──────────
+        function setSection(section, btn) {
+            if (currentView !== 'browse' && currentView !== 'tvneon') goBackToBrowse();
+            stopTVNeonSync();
+            currentSection = section;
+            document.querySelectorAll('.tv-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            else {
+                const activeBtn = document.querySelector(`.tv-btn[data-section="${section}"]`);
+                if (activeBtn) activeBtn.classList.add('active');
+            }
+            if (section === 'tvneon') {
+                renderTVNeon();
+            } else {
+                renderBrowse();
+            }
+            screenContent.scrollTop = 0;
+        }
+
+        function handleSearch() {
+            searchQuery = searchInput.value.trim();
+            clearBtn.classList.toggle('visible', searchQuery.length > 0);
+            if (currentView !== 'browse') {
+                if (currentSection !== 'tvneon') goBackToBrowse();
+                else return;
+            }
+            renderBrowse();
+        }
+
+        function clearSearch() {
+            searchInput.value = '';
+            searchQuery = '';
+            clearBtn.classList.remove('visible');
+            if (currentView !== 'browse') {
+                if (currentSection !== 'tvneon') goBackToBrowse();
+                else return;
+            }
+            renderBrowse();
+        }
+
+        document.querySelectorAll('.tv-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                if (this.classList.contains('inactive')) return;
+                setSection(this.dataset.section, this);
+            });
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (currentWatchItem) goBackFromWatch();
+                else if (currentSeries && currentView === 'episodeList') goBackToBrowse();
+                else if (currentSection === 'tvneon') {}
+                else if (searchQuery) clearSearch();
+            }
+            if ((e.ctrlKey && e.key === 'k') || (e.key === '/' && document.activeElement !== searchInput)) {
+                e.preventDefault();
+                searchInput.focus();
+            }
+        });
+
+        // ══════════════════════════════════════
+        //  INITIALISATION
+        // ══════════════════════════════════════
+        updateTVNeonButton();
+        setInterval(updateTVNeonButton, 300000);
+        renderBrowse();
+    </script>
+</body>
+</html>
