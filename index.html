@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/img/favicon.png">   
     <title>AnimeTV – Your Classic Anime Tube</title>
     <style>
         :root {
@@ -530,7 +531,7 @@
             </div>
             <div class="episode-nav" id="episodeNav"></div>
             <div class="tv-buttons">
-                <button class="tv-btn tvneon" data-section="tvneon">📡 TV‑Neon</button>
+                <button class="tv-btn tvneon inactive" data-section="tvneon">📡 TV‑Neon</button>
                 <button class="tv-btn" data-section="all">📺 All</button>
                 <button class="tv-btn active" data-section="series">📺 Series</button>
                 <button class="tv-btn" data-section="movies">🎬 Movies</button>
@@ -551,7 +552,7 @@
                 {
                     id: 'mewmew',
                     title: 'Mew Mew Power (Družina Mjau Mjau)',
-                    thumbUrl: 'C:/Users/Administrator/Desktop/df/Picture_000.png',
+                    thumbUrl: 'img/series/Picture_000.png',
                     thumbEmoji: '🐱',
                     genre: 'Magical Girl / Romance',
                     year: '2002',
@@ -560,14 +561,14 @@
                         {
                             id: 'ep1',
                             title: 'Episode 1',
-                            thumbUrl: 'C:/Users/Administrator/Desktop/df/mewmewep.png',
+                            thumbUrl: 'img/series/mewmewep.png',
                             thumbEmoji: '🐱',
                             videoUrl: 'https://mega.nz/embed/bjY3QLQR#BBQfeuxQoVJuize6gahKngJPRA8BCdA3e_OGM2kohqI'
                         },
                         {
                             id: 'ep2',
                             title: 'Episode 2',
-                            thumbUrl: 'C:/Users/Administrator/Desktop/df/mewmewep.png',
+                            thumbUrl: 'img/series/mewmewep.png',
                             thumbEmoji: '🐱',
                             videoUrl: 'https://mega.nz/embed/bjY3QLQR#BBQfeuxQoVJuize6gahKngJPRA8BCdA3e_OGM2kohqI'
                         },
@@ -578,7 +579,7 @@
                 {
                     id: 'catreturns',
                     title: 'The Cat Returns (Kraljevstvo Mačaka)',
-                    thumbUrl: 'C:/Users/Administrator/Desktop/df/thecatreturns1.png',
+                    thumbUrl: 'img/movies/thecatreturns1.png',
                     thumbEmoji: '🐈',
                     genre: 'Fantasy / Adventure',
                     year: '2002',
@@ -591,7 +592,7 @@
                 {
                     id: 'mewmew-song',
                     title: 'Družina Mjau Mjau – Main Theme',
-                    thumbUrl: 'C:/Users/Administrator/Desktop/df/mewmew.png',
+                    thumbUrl: 'img/songs/mewmew.png',
                     thumbEmoji: '🎤',
                     anime: 'Mew Mew Power',
                     type: 'Opening',
@@ -603,13 +604,13 @@
                 {
                     id: 'deadmanwonderland-song',
                     title: 'Deadman Wonderland – Main Theme',
-                    thumbUrl: 'C:/Users/Administrator/Desktop/df/deadmanwonderlandop.png',
+                    thumbUrl: 'img/songs/deadmanwonderlandop.png',
                     thumbEmoji: '🎤',
                     anime: 'Deadman Wonderland',
                     type: 'Opening',
                     year: '2011',
                     synopsis: 'The iconic opening theme of Deadman Wonderland.',
-                    videoUrl: 'https://mega.nz/embed/aj5imZJK#0TEm2qdU7zutVxGnVJyLdAjSzWy9SH2QB772mmsXVHI',
+                    videoUrl: 'https://mega.nz/embed/niYESaTC#PAf0CVV7TS4Nh69EujnA_INic5FLheNrAYaUFaAayh4',
                     badge: '🎵 OP'
                 }
             ]
@@ -628,6 +629,12 @@
         let currentSeries = null;
         let currentWatchItem = null;
         let tvNeonTimer = null;
+        let tvNeonActive = false;
+        let tvNeonBlocks = [];           // parsed blocks: [{ videoUrls: [], startTimeMs, blockDurationS? }]
+        let currentBlockIndex = -1;
+        let currentVideoIndexInBlock = 0;  // which video in current block is playing
+        let currentVideoDuration = 0;
+        let activationTimer = null;
 
         const screenContent = document.getElementById('screenContent');
         const searchInput = document.getElementById('searchInput');
@@ -650,18 +657,16 @@
             localStorage.setItem('tvneon_schedule_cache', text);
         }
 
-        // ──────────  INTERNET TIME API (FIXED – forces UTC)  ──────────
+        // ──────────  INTERNET TIME API (fixed UTC)  ──────────
         async function fetchInternetTime() {
             try {
                 const resp = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=UTC');
                 if (!resp.ok) throw new Error('timeapi failed');
                 const data = await resp.json();
-                // The API returns "dateTime" without a timezone suffix – force it to UTC
                 let dt = data.dateTime;
                 if (!dt.endsWith('Z') && !dt.includes('+')) {
-                    dt += 'Z'; // mark as UTC
+                    dt += 'Z';
                 }
-                console.log('[TV-NEON] Internet time fetched:', dt);
                 return new Date(dt).getTime();
             } catch (e) {
                 console.warn('[TV-NEON] Time API failed, using local clock.');
@@ -669,7 +674,7 @@
             }
         }
 
-        // ──────────  SCHEDULE FETCHING (with proxy fallback)  ──────────
+        // ──────────  SCHEDULE FETCHING  ──────────
         async function fetchScheduleText(url) {
             try {
                 const resp = await fetch(url);
@@ -683,49 +688,121 @@
             }
         }
 
-        // ──────────  TV‑NEON BUTTON STATUS  ──────────
+        // ──────────  PARSE BLOCKS (new format)  ──────────
+        function parseBlocks(text) {
+            const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            const blocks = [];
+            let i = 0;
+            while (i < lines.length) {
+                const videoUrls = [];
+                // collect video URLs (lines that are not timestamps and not numbers)
+                while (i < lines.length) {
+                    const line = lines[i];
+                    // check if it looks like an ISO timestamp (contains T and maybe Z)
+                    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(line)) {
+                        break;
+                    }
+                    // check if it's a pure number (duration)
+                    if (/^\d+(\.\d+)?$/.test(line) && videoUrls.length > 0) {
+                        break;
+                    }
+                    // otherwise treat as video URL
+                    videoUrls.push(line);
+                    i++;
+                }
+                if (videoUrls.length === 0) break;
+
+                if (i >= lines.length) break; // no start time → ignore incomplete block
+                const startTimeISO = lines[i];
+                const startTimeMs = new Date(startTimeISO).getTime();
+                if (isNaN(startTimeMs)) { i++; continue; }
+                i++;
+
+                let blockDurationS = undefined;
+                if (i < lines.length && /^\d+(\.\d+)?$/.test(lines[i])) {
+                    blockDurationS = parseFloat(lines[i]);
+                    i++;
+                }
+
+                blocks.push({ videoUrls, startTimeMs, blockDurationS });
+            }
+            return blocks;
+        }
+
+        // ──────────  ACTIVATION / DEACTIVATION  ──────────
+        function setNeonInactive() {
+            tvneonBtn.classList.add('inactive');
+            tvneonBtn.classList.remove('active');
+            tvNeonActive = false;
+        }
+
+        function setNeonActive() {
+            tvneonBtn.classList.remove('inactive');
+            tvneonBtn.classList.add('active');
+            tvNeonActive = true;
+        }
+
+        function clearActivationTimer() {
+            if (activationTimer) {
+                clearTimeout(activationTimer);
+                activationTimer = null;
+            }
+        }
+
+        function scheduleNeonActivation() {
+            clearActivationTimer();
+            const now = Date.now();
+            const blocks = tvNeonBlocks;
+
+            // Check if any block is currently active
+            for (const block of blocks) {
+                const blockEnd = block.blockDurationS
+                    ? block.startTimeMs + block.blockDurationS * 1000
+                    : block.startTimeMs + 4 * 60 * 60 * 1000; // fallback 4 hours
+                if (now >= block.startTimeMs && now < blockEnd + 60000) { // active if within block or 1 min after end
+                    setNeonActive();
+                    return;
+                }
+            }
+
+            // Check for upcoming block (start in the future)
+            const futureBlocks = blocks.filter(b => b.startTimeMs > now).sort((a,b) => a.startTimeMs - b.startTimeMs);
+            if (futureBlocks.length > 0) {
+                const nextBlock = futureBlocks[0];
+                const timeUntilStart = nextBlock.startTimeMs - now;
+                const activationDelay = timeUntilStart - 120000; // 2 minutes before start
+                if (activationDelay <= 0) {
+                    setNeonActive();
+                } else {
+                    setNeonInactive();
+                    activationTimer = setTimeout(() => {
+                        setNeonActive();
+                    }, activationDelay);
+                }
+            } else {
+                setNeonInactive();
+            }
+        }
+
+        // ──────────  UPDATE FROM NETWORK / CACHE  ──────────
         async function updateTVNeonButton() {
             if (!TVNEON_SCHEDULE_URL) {
-                tvneonBtn.classList.add('inactive');
-                tvneonBtn.classList.remove('active');
+                setNeonInactive();
                 return;
             }
             try {
                 const text = await fetchScheduleText(TVNEON_SCHEDULE_URL);
                 setCachedSchedule(text);
-                applyScheduleState(text);
+                tvNeonBlocks = parseBlocks(text);
+                scheduleNeonActivation();
             } catch (e) {
                 const cached = getCachedSchedule();
                 if (cached) {
-                    applyScheduleState(cached);
+                    tvNeonBlocks = parseBlocks(cached);
+                    scheduleNeonActivation();
                 } else {
-                    tvneonBtn.classList.add('inactive');
-                    tvneonBtn.classList.remove('active');
+                    setNeonInactive();
                 }
-            }
-        }
-
-        function applyScheduleState(scheduleText) {
-            const lines = scheduleText.trim().split('\n');
-            if (lines.length < 2) {
-                tvneonBtn.classList.add('inactive');
-                tvneonBtn.classList.remove('active');
-                return;
-            }
-            const startTime = new Date(lines[1].trim()).getTime();
-            if (isNaN(startTime)) {
-                tvneonBtn.classList.add('inactive');
-                tvneonBtn.classList.remove('active');
-                return;
-            }
-            const now = Date.now();
-            const fourHours = 4 * 60 * 60 * 1000;
-            if (startTime > now || (now - startTime) < fourHours) {
-                tvneonBtn.classList.remove('inactive');
-                tvneonBtn.classList.add('active');
-            } else {
-                tvneonBtn.classList.add('inactive');
-                tvneonBtn.classList.remove('active');
             }
         }
 
@@ -946,86 +1023,174 @@
             }
         }
 
-        // ──────────  TV‑NEON PLAYBACK (FULL SYNC WITH CONSOLE LOGS)  ──────────
+        // ──────────  TV‑NEON SYNC (multi-video block)  ──────────
         function stopTVNeonSync() {
             if (tvNeonTimer) {
-                console.log('[TV-NEON] Stopping sync timer.');
                 clearInterval(tvNeonTimer);
                 tvNeonTimer = null;
             }
         }
 
-        async function setupTVNeonPlayer(videoUrl, startTimeISO) {
-            const playerDiv = document.getElementById('videoPlayer');
-            if (!playerDiv) return;
-            const startTime = new Date(startTimeISO).getTime();
-            console.log('[TV-NEON] setupPlayer – videoUrl:', videoUrl, 'startTimeISO:', startTimeISO, 'startTime (ms):', startTime);
-            if (isNaN(startTime)) {
-                console.error('[TV-NEON] Invalid start time.');
-                playerDiv.innerHTML = `<div class="video-placeholder" style="color:var(--neon);">Invalid start time in schedule file.</div>`;
-                return;
+        function getActiveBlockIndex(blocks, now) {
+            let bestIdx = -1;
+            for (let i = 0; i < blocks.length; i++) {
+                if (blocks[i].startTimeMs <= now) {
+                    if (bestIdx === -1 || blocks[i].startTimeMs > blocks[bestIdx].startTimeMs) {
+                        bestIdx = i;
+                    }
+                }
             }
+            return bestIdx;
+        }
 
-            // Use autoplay to leverage the user-gesture from the TV‑Neon button click
-            playerDiv.innerHTML = `<video id="tvneonVideo" style="width:100%; height:100%; object-fit:contain;" preload="auto" autoplay playsinline></video>
+        async function loadVideoInBlock(url) {
+            const playerDiv = document.getElementById('videoPlayer');
+            if (!playerDiv) return null;
+            playerDiv.innerHTML = `<video id="tvneonVideo" style="width:100%; height:100%; object-fit:contain;" preload="auto"></video>
                                   <button class="fullscreen-btn" onclick="document.getElementById('tvneonVideo').requestFullscreen()">⛶ Full</button>`;
             const video = document.getElementById('tvneonVideo');
-            video.src = videoUrl;
+            video.src = url;
             video.load();
-            console.log('[TV-NEON] Video element created, loading...');
 
-            // Wait for metadata to be able to seek
             await new Promise(resolve => {
                 video.addEventListener('loadedmetadata', () => {
-                    console.log('[TV-NEON] Metadata loaded, duration:', video.duration);
+                    currentVideoDuration = video.duration;
                     resolve();
                 }, { once: true });
-                if (video.readyState >= 1) {
-                    console.log('[TV-NEON] Metadata already available.');
+                if (video.readyState >= 1 && video.duration) {
+                    currentVideoDuration = video.duration;
                     resolve();
                 }
             });
+            return video;
+        }
 
+        async function startTVNeonSync() {
+            const blocks = tvNeonBlocks;
+            if (blocks.length === 0) {
+                setNeonInactive();
+                return;
+            }
+
+            const now = await fetchInternetTime();
+            let activeIdx = getActiveBlockIndex(blocks, now);
+            if (activeIdx === -1) {
+                screenContent.innerHTML = `<div class="video-placeholder" style="color:var(--neon);">
+                    <p>Next show starts at ${new Date(blocks[0].startTimeMs).toISOString()}</p>
+                </div>`;
+                return;
+            }
+
+            currentBlockIndex = activeIdx;
+            const block = blocks[activeIdx];
+            const elapsed = (now - block.startTimeMs) / 1000;
+
+            // Determine which video in the block should be playing, based on elapsed time and known durations.
+            // If blockDurationS is provided, use it to clamp. Otherwise play videos sequentially without accurate seek for later videos.
+            let videoIdx = 0;
+            let seekTime = 0;
+            if (block.videoUrls.length === 1) {
+                // single video: seek to elapsed, clamped to duration
+                const video = await loadVideoInBlock(block.videoUrls[0]);
+                if (!video) return;
+                seekTime = Math.max(0, elapsed);
+                if (seekTime > video.duration) seekTime = video.duration;
+                video.currentTime = seekTime;
+                currentVideoIndexInBlock = 0;
+            } else {
+                // multiple videos: start from first video, sync to elapsed time only for the first video
+                // (subsequent videos will play when the previous ends, no sync)
+                const video = await loadVideoInBlock(block.videoUrls[0]);
+                if (!video) return;
+                seekTime = Math.max(0, elapsed);
+                if (seekTime > video.duration) seekTime = video.duration;
+                video.currentTime = seekTime;
+                currentVideoIndexInBlock = 0;
+                // after this video ends, automatically play next video
+                video.addEventListener('ended', playNextVideoInBlock);
+            }
+
+            // Main sync loop (only needed for single video or first video of block)
             const sync = async () => {
                 const now = await fetchInternetTime();
-                const elapsed = (now - startTime) / 1000; // seconds
-                console.log(`[TV-NEON] Sync – now: ${new Date(now).toISOString()}, elapsed: ${elapsed.toFixed(2)}s, video.currentTime: ${video.currentTime.toFixed(2)}s, paused: ${video.paused}`);
+                const block = tvNeonBlocks[currentBlockIndex];
+                if (!block) {
+                    stopTVNeonSync();
+                    setNeonInactive();
+                    scheduleNeonActivation();
+                    return;
+                }
+                const elapsed = (now - block.startTimeMs) / 1000;
 
-                if (elapsed < 0) {
-                    // Before scheduled start – keep paused at 0
-                    console.log('[TV-NEON] Before start time – pausing.');
-                    if (!video.paused) {
-                        video.pause();
-                        console.log('[TV-NEON] Paused video.');
-                    }
-                    if (Math.abs(video.currentTime) > 0.5) {
+                // For single video, keep it synced
+                if (block.videoUrls.length === 1 && currentVideoIndexInBlock === 0) {
+                    const video = document.getElementById('tvneonVideo');
+                    if (!video) return;
+                    if (elapsed < 0) {
+                        if (!video.paused) video.pause();
                         video.currentTime = 0;
-                        console.log('[TV-NEON] Reset currentTime to 0.');
-                    }
-                } else {
-                    // Time to play – ensure video is playing and at correct position
-                    console.log('[TV-NEON] Should be playing.');
-                    if (video.paused) {
-                        try {
-                            await video.play();
-                            console.log('[TV-NEON] Called play() – success.');
-                        } catch (e) {
-                            console.warn('[TV-NEON] play() failed:', e);
+                    } else if (elapsed > video.duration + 60) {
+                        // finished, check for next block
+                        const nextIdx = currentBlockIndex + 1;
+                        if (nextIdx < tvNeonBlocks.length) {
+                            const nextBlock = tvNeonBlocks[nextIdx];
+                            const gap = nextBlock.startTimeMs - (block.startTimeMs + video.duration * 1000);
+                            if (gap <= 120000) {
+                                stopTVNeonSync();
+                                currentBlockIndex = nextIdx;
+                                startTVNeonSync();
+                                return;
+                            }
+                        }
+                        stopTVNeonSync();
+                        setNeonInactive();
+                        scheduleNeonActivation();
+                    } else {
+                        if (video.paused) video.play().catch(() => {});
+                        if (Math.abs(video.currentTime - elapsed) > 2) {
+                            video.currentTime = elapsed;
                         }
                     }
-                    if (Math.abs(video.currentTime - elapsed) > 2) {
-                        console.log(`[TV-NEON] Seeking to ${elapsed.toFixed(2)}s (difference > 2s).`);
-                        video.currentTime = elapsed;
-                    }
                 }
+                // For multi-video block, we only sync the first video; the loop is not needed after that.
             };
 
-            // Initial sync
-            console.log('[TV-NEON] Performing initial sync...');
             await sync();
-            // Continue syncing every 5 seconds
             tvNeonTimer = setInterval(sync, 5000);
-            console.log('[TV-NEON] Sync timer started (every 5s).');
+        }
+
+        function playNextVideoInBlock() {
+            const block = tvNeonBlocks[currentBlockIndex];
+            if (!block) return;
+            currentVideoIndexInBlock++;
+            if (currentVideoIndexInBlock < block.videoUrls.length) {
+                const nextUrl = block.videoUrls[currentVideoIndexInBlock];
+                loadVideoInBlock(nextUrl).then(video => {
+                    if (video) {
+                        video.play();
+                        video.addEventListener('ended', playNextVideoInBlock);
+                    }
+                });
+            } else {
+                // block finished
+                stopTVNeonSync();
+                // check for next block within 2 minutes
+                const now = Date.now();
+                const nextBlockIdx = currentBlockIndex + 1;
+                if (nextBlockIdx < tvNeonBlocks.length) {
+                    const nextBlock = tvNeonBlocks[nextBlockIdx];
+                    const gap = nextBlock.startTimeMs - now;
+                    if (gap <= 120000) {
+                        // next block starting soon, keep neon active (already active)
+                        // and schedule a new sync to start at that block's time
+                        currentBlockIndex = nextBlockIdx;
+                        startTVNeonSync();
+                        return;
+                    }
+                }
+                setNeonInactive();
+                scheduleNeonActivation();
+            }
         }
 
         function renderTVNeon() {
@@ -1036,50 +1201,15 @@
             stopTVNeonSync();
             setChannel('TV‑NEON');
 
-            const cached = getCachedSchedule();
-            if (cached) {
-                try {
-                    const lines = cached.trim().split('\n');
-                    if (lines.length >= 2) {
-                        const videoUrl = lines[0].trim();
-                        const startTimeISO = lines[1].trim();
-                        console.log('[TV-NEON] Using cached schedule:', videoUrl, startTimeISO);
-                        screenContent.innerHTML = `<div class="watch-container"><div class="video-player" id="videoPlayer"><div class="video-placeholder" style="color:var(--neon);">Loading scheduled stream...</div></div></div>`;
-                        setupTVNeonPlayer(videoUrl, startTimeISO);
-                        if (TVNEON_SCHEDULE_URL) {
-                            fetchScheduleText(TVNEON_SCHEDULE_URL).then(text => setCachedSchedule(text)).catch(() => {});
-                        }
-                        return;
-                    }
-                } catch (e) {}
-            }
-
-            if (!TVNEON_SCHEDULE_URL) {
+            if (!tvNeonActive || tvNeonBlocks.length === 0) {
                 screenContent.innerHTML = `<div class="video-placeholder" style="color:var(--neon);">
-                    <p>📡 TV‑Neon schedule URL not set.</p>
-                    <p style="font-size:0.8rem;">Set <code>TVNEON_SCHEDULE_URL</code> in the script.</p>
+                    <p>No upcoming shows scheduled.</p>
                 </div>`;
                 return;
             }
 
-            fetchScheduleText(TVNEON_SCHEDULE_URL)
-                .then(text => {
-                    console.log('[TV-NEON] Fetched schedule text:', text);
-                    setCachedSchedule(text);
-                    const lines = text.trim().split('\n');
-                    if (lines.length < 2) throw new Error('Invalid format');
-                    const videoUrl = lines[0].trim();
-                    const startTimeISO = lines[1].trim();
-                    screenContent.innerHTML = `<div class="watch-container"><div class="video-player" id="videoPlayer"><div class="video-placeholder" style="color:var(--neon);">Loading scheduled stream...</div></div></div>`;
-                    setupTVNeonPlayer(videoUrl, startTimeISO);
-                })
-                .catch(err => {
-                    console.error('[TV-NEON] Error:', err);
-                    screenContent.innerHTML = `<div class="video-placeholder" style="color:var(--neon);">
-                        <p>Error loading schedule</p>
-                        <p style="font-size:0.8rem;">${err.message}</p>
-                    </div>`;
-                });
+            screenContent.innerHTML = `<div class="watch-container"><div class="video-player" id="videoPlayer"><div class="video-placeholder" style="color:var(--neon);">Loading schedule...</div></div></div>`;
+            startTVNeonSync();
         }
 
         // ──────────  NAVIGATION & SEARCH  ──────────
@@ -1146,6 +1276,7 @@
         //  INITIALISATION
         // ══════════════════════════════════════
         updateTVNeonButton();
+        // Re-check schedule every 5 minutes to pick up changes
         setInterval(updateTVNeonButton, 300000);
         renderBrowse();
     </script>
